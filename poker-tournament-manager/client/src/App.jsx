@@ -9,6 +9,7 @@ import Tournaments from './pages/Tournaments';
 import TournamentControl from './pages/TournamentControl';
 import Tables from './pages/Tables';
 import Sync from './pages/Sync';
+import Simulation from './pages/Simulation';
 import './App.css';
 
 function Layout() {
@@ -55,6 +56,7 @@ function App() {
             <Route path="/players/:id" element={<PlayerProfile />} />
             <Route path="/tournaments" element={<Tournaments />} />
             <Route path="/tournaments/:id/control" element={<TournamentControl />} />
+            <Route path="/tournaments/:id/simulation" element={<Simulation />} />
             <Route path="/sync" element={<Sync />} />
           </Route>
         </Routes>

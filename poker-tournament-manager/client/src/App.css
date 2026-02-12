@@ -222,3 +222,18 @@ tr.eliminated { opacity: 0.6; }
 .table-select-item:hover { border-color: var(--accent-gold); }
 .table-select-item input { margin: 0; }
 .table-select-item code { font-size: 0.75rem; color: var(--text-secondary); margin-left: auto; }
+
+/* Simulation */
+.sim-hand-card { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; }
+.sim-hand-header { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; font-size: 0.9rem; }
+.sim-hand-num { font-weight: 600; }
+.sim-winner-badge { color: var(--accent-gold); font-weight: 600; }
+.sim-community { margin-bottom: 1rem; }
+.sim-card { display: inline-block; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.15rem 0.4rem; margin: 0 0.1rem; border-radius: 4px; font-size: 0.85rem; }
+.sim-seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
+.sim-seat { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; }
+.sim-seat.winner { border-color: var(--accent-gold); background: rgba(212, 168, 83, 0.08); }
+.sim-seat-header { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+.sim-seat-cards { margin-bottom: 0.5rem; }
+.sim-best-hand { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.sim-seat-result { font-size: 0.8rem; color: var(--text-secondary); }

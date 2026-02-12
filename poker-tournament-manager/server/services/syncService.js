@@ -70,37 +70,20 @@ function syncUsers(filePath) {
   return { count };
 }
 
-function syncRoundTransactions(filePath, tournamentId = null) {
-  const paths = [
-    path.resolve(filePath || path.join(DEFAULT_PATHS.holdemHome, 'roundTransactions.json')),
-    path.join(DEFAULT_PATHS.confHoldem, 'roundTransactions.json'),
-  ].filter(Boolean);
+function processRoundRecords(arrayRecords, tournamentId, db = null) {
+  const database = db || getDb();
 
-  let content = null;
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      content = fs.readFileSync(p, 'utf8');
-      break;
-    }
-  }
-
-  if (!content) return { count: 0, error: 'roundTransactions.json not found' };
-
-  const records = parseJsonSafe(content, []);
-  const arrayRecords = Array.isArray(records) ? records : [records].filter(Boolean);
-  const db = getDb();
-
-  const insertHand = db.prepare(`
+  const insertHand = database.prepare(`
     INSERT OR IGNORE INTO hands (tournament_id, round_id, table_id, game_name, game_cards, winning_hand, pot_amount, timestamp, raw_game_result)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertHandPlayer = db.prepare(`
+  const insertHandPlayer = database.prepare(`
     INSERT OR REPLACE INTO hand_players (hand_id, player_uid, seat_id, cards, hand_rank, best_hand, total_bet, win_amount, game_status, is_winner)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertWinningHand = db.prepare(`
+  const insertWinningHand = database.prepare(`
     INSERT INTO winning_hands (hand_id, player_uid, hand_rank, hole_cards, best_five, pot_amount, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
@@ -128,7 +111,7 @@ function syncRoundTransactions(filePath, tournamentId = null) {
 
     try {
       const res = insertHand.run(
-        tournamentId,
+        tournamentId ?? null,
         roundId,
         rec.tableId || rec.table_id || '',
         rec.gameName || rec.game_name || '',
@@ -140,10 +123,10 @@ function syncRoundTransactions(filePath, tournamentId = null) {
       );
       if (res.changes > 0) handCount++;
 
-      const handId = db.prepare('SELECT id FROM hands WHERE round_id = ?').get(roundId)?.id;
+      const handId = database.prepare('SELECT id FROM hands WHERE round_id = ?').get(roundId)?.id;
       if (!handId) continue;
 
-      const ensurePlayer = db.prepare(`
+      const ensurePlayer = database.prepare(`
         INSERT OR IGNORE INTO players (external_uid, display_name) VALUES (?, ?)
       `);
 
@@ -177,14 +160,35 @@ function syncRoundTransactions(filePath, tournamentId = null) {
   }
 
   // Update player stats
-  updatePlayerStats(db);
+  updatePlayerStats(database);
 
-  db.prepare(`
+  database.prepare(`
     INSERT INTO sync_log (source, last_round_id, last_sync_at, records_processed)
     VALUES ('round_transactions', ?, datetime('now'), ?)
   `).run(lastRoundId, handCount);
 
   return { count: handCount, lastRoundId };
+}
+
+function syncRoundTransactions(filePath, tournamentId = null) {
+  const paths = [
+    path.resolve(filePath || path.join(DEFAULT_PATHS.holdemHome, 'roundTransactions.json')),
+    path.join(DEFAULT_PATHS.confHoldem, 'roundTransactions.json'),
+  ].filter(Boolean);
+
+  let content = null;
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      content = fs.readFileSync(p, 'utf8');
+      break;
+    }
+  }
+
+  if (!content) return { count: 0, error: 'roundTransactions.json not found' };
+
+  const records = parseJsonSafe(content, []);
+  const arrayRecords = Array.isArray(records) ? records : [records].filter(Boolean);
+  return processRoundRecords(arrayRecords, tournamentId);
 }
 
 function updatePlayerStats(db) {
@@ -244,6 +248,7 @@ function startFileWatcher(holdemPath, pollIntervalMs = 5000) {
 module.exports = {
   syncUsers,
   syncRoundTransactions,
+  processRoundRecords,
   updatePlayerStats,
   startFileWatcher,
   DEFAULT_PATHS,

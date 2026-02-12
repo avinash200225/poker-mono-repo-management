@@ -2,13 +2,23 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { getDb } = require('./db/init');
-const { syncUsers, syncRoundTransactions, startFileWatcher, DEFAULT_PATHS } = require('./services/syncService');
+const { syncUsers, syncRoundTransactions, processRoundRecords, startFileWatcher, DEFAULT_PATHS } = require('./services/syncService');
 const { login, middleware: authMiddleware, ensureSeedAdmin } = require('./services/authService');
 
 // Dr. Neau formula: Points = LN((TotalPlayers + 1) / FinishPosition)
 function drNeauPoints(totalPlayers, position) {
   if (!position || position < 1) return null;
   return Math.log((totalPlayers + 1) / position);
+}
+
+// Dr. Neau reworked: prize-pool/avg-spend aware
+// Points = (Prizemoney / √(Players · (Buy-in + Rebuys + Add-ons))) · (1 / (1 + Rank))
+function drNeauReworkedPoints(prizePool, players, totalSpend, position) {
+  if (!position || position < 1 || !players || players < 1) return null;
+  const spend = totalSpend || (players * 100); // fallback
+  const denom = Math.sqrt(players * spend);
+  if (denom <= 0) return null;
+  return (prizePool / denom) * (1 / (1 + position));
 }
 
 const app = express();
@@ -291,8 +301,13 @@ app.patch('/api/tournaments/:id/registrations/:regId', (req, res) => {
   if (position != null) {
     const totalPlayers = db.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(req.params.id).n;
     const points = drNeauPoints(totalPlayers, position);
-    db.prepare('UPDATE tournament_registrations SET position = ?, dr_neau_points = ? WHERE id = ?')
-      .run(position, points, req.params.regId);
+    const t = db.prepare('SELECT buy_in, starting_chips, total_prize_pool, total_rebuys, total_addons FROM tournaments WHERE id = ?').get(req.params.id);
+    const buyIn = t?.buy_in ?? 0;
+    const totalSpend = (totalPlayers * buyIn) + (t?.total_rebuys ?? 0) + (t?.total_addons ?? 0);
+    const prizePool = t?.total_prize_pool ?? totalSpend;
+    const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend, position);
+    db.prepare('UPDATE tournament_registrations SET position = ?, dr_neau_points = ?, dr_neau_reworked_points = ? WHERE id = ?')
+      .run(position, points, reworkedPoints, req.params.regId);
   }
   res.json({ ok: true });
 });
@@ -486,6 +501,17 @@ app.post('/api/sync/users', (req, res) => {
 app.post('/api/sync/rounds', (req, res) => {
   const { file_path, tournament_id } = req.body || {};
   const result = syncRoundTransactions(file_path, tournament_id);
+  res.json(result);
+});
+
+// Ingest round transactions directly (for game simulator)
+app.post('/api/sync/rounds/ingest', (req, res) => {
+  const { tournament_id, records } = req.body || {};
+  if (!Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({ error: 'records array required' });
+  }
+  const tournamentId = tournament_id ? Number(tournament_id) : null;
+  const result = processRoundRecords(records, tournamentId);
   res.json(result);
 });
 

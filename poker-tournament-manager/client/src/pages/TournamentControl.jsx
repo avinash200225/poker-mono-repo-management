@@ -169,7 +169,10 @@ export default function TournamentControl() {
           <h1>{tournament.name}</h1>
           <p>{tournament.event_date} · {tournament.status} · {active.length} in play · {eliminated.length} eliminated</p>
         </div>
-        <Link to="/tournaments" className="btn btn-secondary">← Back</Link>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link to={`/tournaments/${id}/simulation`} className="btn btn-primary">Game Simulation</Link>
+          <Link to="/tournaments" className="btn btn-secondary">← Back</Link>
+        </div>
       </div>
 
       <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
@@ -291,16 +294,17 @@ export default function TournamentControl() {
 
       {eliminated.length > 0 && (
         <div className="card">
-          <h3>Standings (Dr. Neau)</h3>
+          <h3>Standings</h3>
           <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
-            Points = LN((Players+1) / Rank). Higher is better.
+            Dr. Neau: LN((Players+1)/Rank). Reworked: (PrizePool/√(Players·Spend))·(1/(1+Rank)) — prize-pool/avg-spend aware.
           </p>
           <table>
             <thead>
               <tr>
                 <th>Rank</th>
                 <th>Player</th>
-                <th>Points</th>
+                <th>Dr. Neau</th>
+                <th>Reworked</th>
               </tr>
             </thead>
             <tbody>
@@ -312,6 +316,7 @@ export default function TournamentControl() {
                     <td>#{r.position}</td>
                     <td>{r.display_name}</td>
                     <td>{r.dr_neau_points != null ? Number(r.dr_neau_points).toFixed(2) : '—'}</td>
+                    <td>{r.dr_neau_reworked_points != null ? Number(r.dr_neau_reworked_points).toFixed(3) : '—'}</td>
                   </tr>
                 ))}
             </tbody>
