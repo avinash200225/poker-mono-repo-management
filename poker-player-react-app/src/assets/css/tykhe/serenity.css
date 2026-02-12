@@ -1,0 +1,229 @@
+.serenity-task-box {
+  -webkit-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2),
+    0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 0 2px 0 rgba(0, 0, 0, 0.14);
+  -moz-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2),
+    0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 0 2px 0 rgba(0, 0, 0, 0.14);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.12),
+    0 0 2px 0 rgba(0, 0, 0, 0.14);
+}
+.serenity-task-box .task-box-header {
+  padding: 8px 14px;
+}
+.serenity-task-box .task-box-header:before,
+.serenity-task-box .task-box-header:after {
+  content: "";
+  display: table;
+}
+.serenity-task-box .task-box-header:after {
+  clear: both;
+}
+.serenity-task-box .task-box-header i {
+  float: right;
+  color: #ffffff;
+}
+.serenity-task-box .task-box-content {
+  background-color: #ffffff;
+  padding: 8px 14px;
+}
+.serenity-task-box .task-box-content h3 {
+  font-weight: bold;
+  font-size: 14px;
+  margin: 14px 0 7px 0;
+  padding: 0;
+}
+.serenity-task-box .task-box-content p {
+  color: #757575;
+  margin: 0 0 28px 0;
+  padding: 0;
+}
+.serenity-task-box .task-box-footer {
+  background-color: #ffffff;
+  padding: 8px 14px;
+}
+.serenity-task-box .task-box-footer:before,
+.serenity-task-box .task-box-footer:after {
+  content: "";
+  display: table;
+}
+.serenity-task-box .task-box-footer:after {
+  clear: both;
+}
+.serenity-task-box .task-box-footer img {
+  width: 32px;
+  float: right;
+  margin-left: 4px;
+}
+.serenity-task-box .task-box-footer .task-status {
+  -moz-border-radius: 9px;
+  -webkit-border-radius: 9px;
+  border-radius: 9px;
+  padding: 2px 8px;
+  color: #ffffff;
+}
+.serenity-task-box.task-box-1 .task-box-header {
+  background-color: #e91e63;
+}
+.serenity-task-box.task-box-1 .task-box-footer .task-status {
+  background-color: #e91e63;
+}
+.serenity-task-box.task-box-2 .task-box-header {
+  background-color: #ffc107;
+}
+.serenity-task-box.task-box-2 .task-box-footer .task-status {
+  background-color: #ffc107;
+}
+.serenity-task-box.task-box-3 .task-box-header {
+  background-color: #00bcd4;
+}
+.serenity-task-box.task-box-3 .task-box-footer .task-status {
+  background-color: #00bcd4;
+}
+
+.serenity-overview-box {
+  text-align: center;
+  color: #ffffff;
+  -webkit-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2),
+    0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 0 2px 0 rgba(0, 0, 0, 0.14);
+  -moz-box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2),
+    0 2px 2px 0 rgba(0, 0, 0, 0.12), 0 0 2px 0 rgba(0, 0, 0, 0.14);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.12),
+    0 0 2px 0 rgba(0, 0, 0, 0.14);
+}
+.serenity-overview-box .overview-box-header {
+  height: 24px;
+}
+.serenity-overview-box .overview-box-content {
+  padding: 8px 14px 14px 14px;
+}
+.serenity-overview-box .overview-box-content .overview-box-icon {
+  -moz-border-radius: 50%;
+  -webkit-border-radius: 50%;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  margin: 0 auto;
+  margin-top: -28px;
+}
+.serenity-overview-box .overview-box-content .overview-box-icon i {
+  line-height: inherit;
+  font-size: 28px;
+}
+.serenity-overview-box .overview-box-content .overview-box-title {
+  font-size: 16px;
+}
+.serenity-overview-box .overview-box-content .overview-box-count {
+  font-size: 20px;
+}
+.serenity-overview-box.overview-box-1 .overview-box-header {
+  background-color: #f06292;
+}
+.serenity-overview-box.overview-box-1 .overview-box-content {
+  background-color: #e91e63;
+}
+.serenity-overview-box.overview-box-1 .overview-box-content .overview-box-icon {
+  background-color: #e91e63;
+}
+.serenity-overview-box.overview-box-2 .overview-box-header {
+  background-color: #4dd0e1;
+}
+.serenity-overview-box.overview-box-2 .overview-box-content {
+  background-color: #00bcd4;
+}
+.serenity-overview-box.overview-box-2 .overview-box-content .overview-box-icon {
+  background-color: #00bcd4;
+}
+.serenity-overview-box.overview-box-3 .overview-box-header {
+  background-color: #ffd54f;
+}
+.serenity-overview-box.overview-box-3 .overview-box-content {
+  background-color: #ffc107;
+}
+.serenity-overview-box.overview-box-3 .overview-box-content .overview-box-icon {
+  background-color: #ffc107;
+}
+.serenity-overview-box.overview-box-4 .overview-box-header {
+  background-color: #9e9e9e;
+}
+.serenity-overview-box.overview-box-4 .overview-box-content {
+  background-color: #616161;
+}
+.serenity-overview-box.overview-box-4 .overview-box-content .overview-box-icon {
+  background-color: #616161;
+}
+
+.serenity-status-bars ul {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+.serenity-status-bars ul li {
+  padding: 8px 14px;
+  position: relative;
+}
+.serenity-status-bars ul li span {
+  position: absolute;
+  right: 36px;
+  top: 8px;
+}
+.serenity-status-bars ul li i {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+}
+.serenity-status-bars .status-card {
+  margin-top: 0em;
+  padding-top: 0em;
+  padding-bottom: 0em;
+}
+.serenity-status-bars .status-bar {
+  height: 18px;
+  width: 75%;
+  background-color: #d8d8d8;
+  -moz-border-radius: 6px;
+  -webkit-border-radius: 6px;
+  border-radius: 6px;
+}
+.serenity-status-bars .status-bar .status-bar-value {
+  height: 100%;
+  color: #ffffff;
+  text-align: right;
+  padding-right: 4px;
+  padding-top: 1px;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  -moz-border-radius: 6px;
+  -webkit-border-radius: 6px;
+  border-radius: 6px;
+}
+.serenity-status-bars .status-bar.status-bar-1 .status-bar-value {
+  background-color: #e91e63;
+}
+.serenity-status-bars .status-bar.status-bar-1 ~ i {
+  color: #e91e63;
+}
+.serenity-status-bars .status-bar.status-bar-2 .status-bar-value {
+  background-color: #00bcd4;
+}
+.serenity-status-bars .status-bar.status-bar-2 ~ i {
+  color: #00bcd4;
+}
+.serenity-status-bars .status-bar.status-bar-3 .status-bar-value {
+  background-color: #ffc107;
+}
+.serenity-status-bars .status-bar.status-bar-3 ~ i {
+  color: #ffc107;
+}
+.serenity-status-bars .status-bar.status-bar-4 .status-bar-value {
+  background-color: #cddc39;
+}
+.serenity-status-bars .status-bar.status-bar-4 ~ i {
+  color: #cddc39;
+}
+.serenity-status-bars .status-bar.status-bar-5 .status-bar-value {
+  background-color: #ff9800;
+}
+.serenity-status-bars .status-bar.status-bar-5 ~ i {
+  color: #ff9800;
+}

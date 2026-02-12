@@ -1,0 +1,194 @@
+.p-tabview .p-tabview-nav li .p-tabview-nav-link {
+    border: solid #D4D6D9;
+    border-width: 0 0 2px 0;
+    border-color: transparent transparent #D4D6D9 transparent;
+    background: #ffffff;
+    color: #83888F;
+    padding: 1rem;
+    font-weight: 600;
+    border-top-right-radius: 6px;
+    border-top-left-radius: 6px;
+    transition: box-shadow 0.2s;
+    margin: 0 0 -2px 0;
+  }
+  .p-tabview .p-tabview-nav li .p-tabview-nav-link:not(.p-disabled):focus {
+    outline: 0 none;
+    outline-offset: 0;
+    box-shadow: inset 0 0 0 0.2rem #0f97c7;
+  }
+  .p-tabview .p-tabview-nav li:not(.p-highlight):not(.p-disabled):hover .p-tabview-nav-link {
+    background: #ffffff;
+    border-color: #83888F;
+    color: #83888F;
+  }
+  .p-tabview .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+    background: #ffffff;
+    border-color: #0f97c7;
+    color: #0f97c7;
+  }
+  
+  body .material-icons {
+    font-family: "Material Icons";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 1.5em;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    /* Support for all WebKit browsers. */
+    -webkit-font-smoothing: antialiased;
+    /* Support for Safari and Chrome. */
+    text-rendering: optimizeLegibility;
+    /* Support for Firefox. */
+    -moz-osx-font-smoothing: grayscale;
+    /* Support for IE. */
+    font-feature-settings: "liga";
+  }
+  
+  .players-basic-datatable .player {
+    border-radius: 2px;
+    padding: 0.25em 0.5em;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+}
+.players-basic-datatable .player.status-online {
+    background-color: #C8E6C9;
+    color: #256029;
+}
+.players-basic-datatable .player.status-offline {
+    background-color: #FFCDD2;
+    color: #C63737;
+}
+.players-basic-datatable .player.usage-unlocked {
+    color: #256029;
+}
+.players-basic-datatable .player.usage-locked {
+    color: #C63737;
+}
+
+.players-basic-datatable .p-multiselect-representative-option {
+    display: inline-block;
+    vertical-align: middle;
+}
+.players-basic-datatable .p-multiselect-representative-option img {
+    vertical-align: middle;
+    width: 24px;
+}
+.players-basic-datatable .p-multiselect-representative-option span {
+    margin-top: 0.125em;
+}
+.players-basic-datatable .flag {
+    width: 30px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+.players-basic-datatable .p-paginator .p-dropdown {
+    float: left;
+}
+.players-basic-datatable .p-paginator .p-paginator-current {
+    float: left;
+}
+.players-basic-datatable .p-progressbar {
+    height: 8px;
+    background-color: #D8DADC;
+}
+.players-basic-datatable .p-progressbar .p-progressbar-value {
+    background-color: #00ACAD;
+    transition: none;
+}
+.players-basic-datatable .p-column-filter {
+    display: block;
+}
+.players-basic-datatable .p-column-filter input {
+    width: 100%;
+}
+.players-basic-datatable .p-datatable-globalfilter-container {
+    float: right;
+}
+.players-basic-datatable .p-datatable-globalfilter-container input {
+    width: 200px;
+}
+.players-basic-datatable .p-datepicker {
+    min-width: 25em;
+}
+.players-basic-datatable .p-datepicker td {
+    font-weight: 400;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 2px 1px -1px rgba(0, 0, 0, 0.12);
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-datatable-header {
+    border: 0 none;
+    padding: 12px;
+    text-align: center;
+    font-size: 20px;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-paginator {
+    border: 0 none;
+    padding: 1em;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-datatable-thead > tr > th {
+    border: 0 none;
+    text-align: left;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-datatable-thead > tr > th.p-filter-column {
+    border-top: 1px solid #c8c8c8;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-datatable-tbody > tr > td {
+    border: 0 none;
+    cursor: auto;
+}
+.players-basic-datatable .p-datatable.p-players-basic-datatable .p-dropdown-label:not(.p-placeholder) {
+    text-transform: uppercase;
+}
+  
+
+.deposit-dialogue .p-dialog-content {
+  padding-top: 0;
+}
+
+.user-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.user-balance-center .user-data .user-title {
+  font-weight: 700;
+  font-size: 20px;
+  margin: 0 0 .5em 0;
+}
+.user-balance-center .user-data .user-subtitle {
+  margin: 0.25em 0 0 0;
+}
+.user-balance-center .user-data  button {
+  margin-left: 0.2em;
+  margin-right: 0.2em;
+}
+
+.user-balance-center .user-data .user-buttons button {
+  margin-left: 0.5em;
+  margin-right: 0;
+
+}
+.user-balance-center .user-data .user-buttons button:first-child {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.user-balance-center .user-amount {
+  margin-bottom: 5px;
+}
+.user-balance-center .user-buttons {
+  margin-bottom: 5px;
+}
+

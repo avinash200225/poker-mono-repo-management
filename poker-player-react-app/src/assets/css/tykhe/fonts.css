@@ -1,0 +1,86 @@
+@font-face {
+    font-family: 'Roboto';
+    src: url('/assets/fonts/Roboto-Light-webfont.woff') format('woff');
+  }
+  
+  
+@font-face {
+    font-family: 'Roboto Condensed';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/assets/fonts/roboto-condensed-v18-latin-regular.woff') format('woff');
+  }
+  
+@font-face {
+    font-family: 'Inter UI';
+    font-style: normal;
+    font-weight: 400;
+    src: url("/assets/fonts/Inter-UI-Regular.otf") format('opentype'), /* IE6-IE8 */
+    url("/assets/fonts/Inter-UI-Regular.woff2") format('woff2'), /* Super Modern Browsers */
+    url("/assets/fonts/Inter-UI-Regular.woff") format('woff'), /* Modern Browsers */
+    url("/assets/fonts/Inter-UI-Regular.ttf") format('truetype'); /* Safari, Android, iOS */
+}
+
+@font-face {
+    font-family: 'Inter UI';
+    font-style: normal;
+    font-weight: 500;
+    src: url("/assets/fonts/Inter-UI-SemiBold.otf") format('opentype'), /* IE6-IE8 */
+    url("/assets/fonts/Inter-UI-SemiBold.woff2") format('woff2'), /* Super Modern Browsers */
+    url("/assets/fonts/Inter-UI-SemiBold.woff") format('woff'), /* Modern Browsers */
+    url("/assets/fonts/Inter-UI-SemiBold.ttf") format('truetype'); /* Safari, Android, iOS */
+}
+
+@font-face {
+    font-family: 'Inter UI';
+    font-style: normal;
+    font-weight: 700;
+    src: url("/assets/fonts/Inter-UI-Bold.otf") format('opentype'), /* IE6-IE8 */
+    url("/assets/fonts/Inter-UI-Bold.woff2") format('woff2'), /* Super Modern Browsers */
+    url("/assets/fonts/Inter-UI-Bold.woff") format('woff'), /* Modern Browsers */
+    url("/assets/fonts/Inter-UI-Bold.ttf") format('truetype'); /* Safari, Android, iOS */
+}
+
+@font-face {
+    font-family: 'Nunito';
+    font-style: normal;
+    font-weight: 400;
+    src: local("Nunito Regular"), local("Nunito-Regular"), url("/assets/fonts/nunito-v12-latin-ext_latin-regular.woff2") format("woff2"), url("/assets/fonts/nunito-v12-latin-ext_latin-regular.woff") format("woff");
+    /* Modern Browsers */ }
+  @font-face {
+    font-family: 'Nunito';
+    font-style: normal;
+    font-weight: 600;
+    src: local("Nunito SemiBold"), local("Nunito-SemiBold"), url("/assets/fonts/nunito-v12-latin-ext_latin-600.woff2") format("woff2"), url("/assets/fonts/nunito-v12-latin-ext_latin-600.woff") format("woff");
+    /* Modern Browsers */ }
+  @font-face {
+    font-family: 'Nunito';
+    font-style: normal;
+    font-weight: 700;
+    src: local("Nunito Bold"), local("Nunito-Bold"), url("/assets/fonts/nunito-v12-latin-ext_latin-700.woff2") format("woff2"), url("/assets/fonts/nunito-v12-latin-ext_latin-700.woff") format("woff");
+    /* Modern Browsers */ }
+
+
+@font-face {
+    font-family: 'PrimeIcons';
+    font-display: auto;
+    src: url('/assets/fonts/primeicons.eot');
+    src: url('/assets/fonts/primeicons.eot?#iefix') format('embedded-opentype'), 
+         url('/assets/fonts/primeicons.ttf') format('truetype'), 
+         url('/assets/fonts/primeicons.woff') format('woff'), 
+         url('/assets/fonts/primeicons.svg?#primeicons') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Material Icons';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/assets/fonts/MaterialIcons-Regular.eot'); /* For IE6-8 */
+    src: local('Material Icons'),
+         local('MaterialIcons-Regular'),
+         url('/assets/fonts/MaterialIcons-Regular.woff2') format('woff2'),
+         url('/assets/fonts/MaterialIcons-Regular.woff') format('woff'),
+         url('/assets/fonts/MaterialIcons-Regular.ttf') format('truetype');
+  }

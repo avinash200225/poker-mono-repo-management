@@ -1,0 +1,26 @@
+[
+  {
+    "MessageType": "ROUND_RESULT",
+    "transType": "Win",
+    "tableId": "73",
+    "gameName": "Texas No Limit",
+    "roundId": 101,
+    "winningHand": ["Two Pair"],
+    "gameResult": "{\"roundId\":101,\"configData\":{\"pokerVariant\":\"Texas\",\"betLimit\":\"No Limit\"},\"gameCards\":[\"hA\",\"sK\",\"dQ\",\"cJ\",\"h10\"],\"winners\":[{\"id\":0,\"winAmount\":1500,\"hand\":\"Two Pair\",\"cards\":[\"hA\",\"hK\"]}],\"seats\":[{\"id\":0,\"uid\":\"1\",\"cards\":[\"hA\",\"hK\"],\"hand\":[\"hA\",\"hK\",\"hQ\",\"hJ\",\"h10\"],\"score\":\"Two Pair\",\"betList\":[{\"index\":0,\"betValue\":500,\"group\":\"preflop\",\"betType\":\"raise\"}],\"winAmount\":1500,\"gameStatus\":\"Win-Two Pair\"},{\"id\":1,\"uid\":\"2\",\"cards\":[\"sQ\",\"sJ\"],\"hand\":[],\"score\":\"Folded\",\"betList\":[{\"index\":0,\"betValue\":500,\"group\":\"preflop\",\"betType\":\"call\"}],\"winAmount\":0,\"gameStatus\":\"Lost-Folded\"}]}",
+    "playersTotalBet": [["1", 500], ["2", 500]],
+    "playerBetsList": "[]",
+    "timestamp": "Thu, 12 Feb 2026 10:30:00.000 IST"
+  },
+  {
+    "MessageType": "ROUND_RESULT",
+    "transType": "Win",
+    "tableId": "73",
+    "gameName": "Texas No Limit",
+    "roundId": 102,
+    "winningHand": ["Straight"],
+    "gameResult": "{\"roundId\":102,\"configData\":{\"pokerVariant\":\"Texas\",\"betLimit\":\"No Limit\"},\"gameCards\":[\"h9\",\"s8\",\"d7\",\"c6\",\"h5\"],\"winners\":[{\"id\":1,\"winAmount\":2200,\"hand\":\"Straight\",\"cards\":[\"s10\",\"hJ\"]}],\"seats\":[{\"id\":0,\"uid\":\"1\",\"cards\":[\"h2\",\"d3\"],\"hand\":[],\"score\":\"Folded\",\"betList\":[{\"index\":0,\"betValue\":100,\"group\":\"preflop\",\"betType\":\"check\"}],\"winAmount\":0,\"gameStatus\":\"Folded\"},{\"id\":1,\"uid\":\"2\",\"cards\":[\"s10\",\"hJ\"],\"hand\":[\"s10\",\"h9\",\"s8\",\"d7\",\"c6\"],\"score\":\"Straight\",\"betList\":[{\"index\":0,\"betValue\":1100,\"group\":\"preflop\",\"betType\":\"raise\"}],\"winAmount\":2200,\"gameStatus\":\"Win-Straight\"}]}",
+    "playersTotalBet": [["1", 100], ["2", 1100]],
+    "playerBetsList": "[]",
+    "timestamp": "Thu, 12 Feb 2026 10:35:00.000 IST"
+  }
+]

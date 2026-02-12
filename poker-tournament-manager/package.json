@@ -1,0 +1,24 @@
+{
+  "name": "poker-tournament-manager",
+  "version": "1.0.0",
+  "description": "Poker tournament management - player profiles, stats, event organizer control",
+  "private": true,
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "cd client && npm run dev",
+    "client:build": "cd client && npm run build",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "setup": "npm install && cd client && npm install"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.0.0",
+    "chokidar": "^3.5.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

@@ -1,0 +1,253 @@
+pipeline {
+    agent any   // Run on any available Jenkins agent
+
+    environment {
+        // ✅ PATH and tool configurations
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        
+        // ✅ Unity executable path (for Mac)
+        UNITY_PATH = "/Applications/Unity/Hub/Editor/2022.3.22f1/Unity.app/Contents/MacOS/Unity"
+        
+        // ✅ Project & Build paths
+        PROJECT_PATH = "${WORKSPACE}"                   // Jenkins workspace
+        BUILD_PATH = "${WORKSPACE}/Builds/Android"      // Output folder for APK build
+        APK_NAME = "poker.apk"                          // Final APK file name
+        
+        // ✅ Java configuration (required for Unity + Android build)
+        JAVA_HOME = "/opt/homebrew/opt/openjdk@11"
+        
+        // ✅ Android SDK & NDK configuration
+        ANDROID_HOME = "/Users/monikakumari/Library/Android/sdk"
+        ANDROID_NDK_HOME = "/Users/monikakumari/Library/Android/sdk/ndk/25.1.8937393"
+        
+        // ✅ AWS S3 configuration for upload
+        S3_BUCKET = "only-unity-build"
+        S3_FOLDER = "unity-poker-apk"
+        S3_REGION = "ap-south-1"
+    }
+
+    stages {
+        stage('System Check') {
+            steps {
+                echo "🔍 Checking system requirements..."
+                sh """
+                    echo "☕ Java Version:"
+                    java -version
+                    
+                    echo "🎮 Unity Check:"
+                    if [ -f "${UNITY_PATH}" ]; then
+                        echo "✅ Unity found"
+                    else
+                        echo "❌ Unity not found"
+                        exit 1
+                    fi
+                    
+                    echo "📁 Workspace contents:"
+                    ls -la "${WORKSPACE}"
+                """
+            }
+        }
+
+        stage('Checkout Code') {
+            steps {
+                echo "📥 Cloning Unity project..."
+                // Pull source code from GitHub repo
+                git branch: 'main',
+                    url: 'https://github.com/1-Wildace/unity-table-poker.git',
+                    credentialsId: 'github-creds'
+            }
+        }
+        
+        stage('Create BuildScript') {
+            steps {
+                echo "📝 Creating Unity BuildScript.cs..."
+                // Generate a custom Unity Editor script for automated Android builds
+                sh '''
+                    mkdir -p Assets/Editor
+                    
+                    cat > Assets/Editor/BuildScript.cs << 'EOL'
+                    ... (C# Unity build script code here) ...
+                    EOL
+                    
+                    echo "✅ BuildScript.cs created!"
+                    echo "📋 Preview of BuildScript:"
+                    head -20 Assets/Editor/BuildScript.cs
+                '''
+            }
+        }
+
+        stage('Unity Build') {
+            // Prevent infinite hanging by setting a timeout
+            options {
+                timeout(time: 15, unit: 'MINUTES')
+            }
+            
+            steps {
+                echo "📦 Building Unity project for Android..."
+                sh """
+                    mkdir -p "${BUILD_PATH}"
+                    
+                    # Export environment variables
+                    export JAVA_HOME=${JAVA_HOME}
+                    export ANDROID_HOME=${ANDROID_HOME}
+                    export ANDROID_NDK_HOME=${ANDROID_NDK_HOME}
+                    export PATH="${JAVA_HOME}/bin:${PATH}"
+                    
+                    echo "🚀 Starting Unity build..."
+                    
+                    # Run Unity in batchmode (no GUI) for automated builds
+                    "${UNITY_PATH}" \
+                        -batchmode \
+                        -nographics \
+                        -quit \
+                        -projectPath "${PROJECT_PATH}" \
+                        -executeMethod BuildScript.BuildAndroid \
+                        -buildTarget Android \
+                        -customBuildPath "${BUILD_PATH}/${APK_NAME}" \
+                        -logFile "${WORKSPACE}/unity_build.log" &
+                    
+                    UNITY_PID=\$!
+                    echo "Unity PID: \$UNITY_PID"
+                    
+                    # Monitor Unity build process
+                    COUNTER=0
+                    while kill -0 \$UNITY_PID 2>/dev/null; do
+                        COUNTER=\$((COUNTER + 1))
+                        echo "⏱️ Unity running... (\${COUNTER}0 seconds)"
+                        
+                        # Print log tail every 1 minute
+                        if [ \$((COUNTER % 6)) -eq 0 ] && [ -f "${WORKSPACE}/unity_build.log" ]; then
+                            echo "📋 Unity Log (last 10 lines):"
+                            tail -10 "${WORKSPACE}/unity_build.log"
+                        fi
+                        
+                        sleep 10
+                        
+                        # Kill Unity if it exceeds 12 minutes
+                        if [ \$COUNTER -gt 72 ]; then
+                            echo "⚠️ Unity build timeout, killing process..."
+                            kill -9 \$UNITY_PID
+                            exit 1
+                        fi
+                    done
+                    
+                    # Wait for Unity process to exit
+                    wait \$UNITY_PID
+                    UNITY_EXIT_CODE=\$?
+                    
+                    echo "🏁 Unity process exited with code: \$UNITY_EXIT_CODE"
+                    
+                    # Show Unity logs
+                    if [ -f "${WORKSPACE}/unity_build.log" ]; then
+                        echo "📋 Full Unity Build Log:"
+                        cat "${WORKSPACE}/unity_build.log"
+                    else
+                        echo "❌ Unity log not found!"
+                    fi
+                    
+                    # Verify if APK was created
+                    if [ -f "${BUILD_PATH}/${APK_NAME}" ]; then
+                        echo "✅ APK Created!"
+                        ls -la "${BUILD_PATH}/${APK_NAME}"
+                        
+                        APK_SIZE=\$(du -h "${BUILD_PATH}/${APK_NAME}" | cut -f1)
+                        echo "📦 APK Size: \$APK_SIZE"
+                    else
+                        echo "❌ APK not found!"
+                        ls -la "${BUILD_PATH}/" || echo "Build directory missing"
+                        exit 1
+                    fi
+                    
+                    exit \$UNITY_EXIT_CODE
+                """
+            }
+        }
+
+        stage('Upload to S3') {
+            when {
+                // Only upload if APK exists
+                expression { fileExists("${BUILD_PATH}/${APK_NAME}") }
+            }
+            steps {
+                echo "☁️ Uploading APK to AWS S3..."
+                script {
+                    def timestamp = new Date().format('yyyy-MM-dd-HHmmss')
+                    sh """
+                        # Upload versioned build
+                        aws s3 cp "${BUILD_PATH}/${APK_NAME}" \
+                            "s3://${S3_BUCKET}/${S3_FOLDER}/builds/build-${BUILD_NUMBER}-${timestamp}/${APK_NAME}" \
+                            --region ${S3_REGION}
+                        
+                        # Upload latest build (always overwrite)
+                        aws s3 cp "${BUILD_PATH}/${APK_NAME}" \
+                            "s3://${S3_BUCKET}/${S3_FOLDER}/latest/${APK_NAME}" \
+                            --region ${S3_REGION}
+                        
+                        echo "✅ APK uploaded successfully!"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Always clean up leftover Unity processes and archive logs
+            sh """
+                echo "🧹 Cleaning up Unity processes..."
+                pkill -f "Unity.app" || echo "No Unity processes running"
+                
+                if [ -f "${WORKSPACE}/unity_build.log" ]; then
+                    echo "📋 Final Unity Log (last 20 lines):"
+                    tail -20 "${WORKSPACE}/unity_build.log"
+                fi
+            """
+        }
+        success {
+            echo "✅ Pipeline SUCCESS! APK built and uploaded to S3."
+        }
+        failure {
+            echo "❌ Pipeline FAILED!"
+            echo "💡 Possible issues:"
+            echo "   - Unity license not activated"
+            echo "   - Missing scenes in build settings"
+            echo "   - Android SDK/NDK not configured properly"
+            echo "   - Corrupted Unity project"
+        }
+    }
+}
+// Script End Jenkinsfile
+// install dependensied on OS - this is only installlation steps
+
+Install Homebrew -    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+ # Install Java 11 via Homebrew
+brew install openjdk@11 Java Environment Setup
+bash
+
+
+Copy
+# Add Java to PATH
+echo 'export PATH="/opt/homebrew/opt/openjdk@11/bin:$PATH"' >> ~/.zshrc
+
+# Set JAVA_HOME
+echo 'export JAVA_HOME="/opt/homebrew/opt/openjdk@11"' >> ~/.zshrc
+
+# Reload shell configuration
+source ~/.zshrc 
+Java Verification
+bash
+
+
+Copy
+# Check Java version
+java -version
+# Output: openjdk version "11.0.28" 2025-07-15
+
+# Check JAVA_HOME
+echo $JAVA_HOME
+# Output: /opt/homebrew/opt/openjdk@11
+
+# Check Java location
+which java
+# Output: /opt/homebrew/opt/openjdk@11/bin/java
+ 

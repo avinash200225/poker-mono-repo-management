@@ -1,0 +1,134 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6670085055208028164
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3794435344064239903}
+  - component: {fileID: 3265593620386276718}
+  m_Layer: 0
+  m_Name: WebSocket
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3794435344064239903
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6670085055208028164}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3265593620386276718
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6670085055208028164}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0a6bff30f63e0a438b1e2c75ae5b7e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mySeat:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat1:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat2:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat3:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat4:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat5:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat6:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []
+  oppSeat7:
+    id: -1
+    ip: 
+    hint: 
+    uid: 
+    connected: 0
+    totalBet: 0
+    lastWin: 0
+    history: []
+    betList: []
+    winningBets: []

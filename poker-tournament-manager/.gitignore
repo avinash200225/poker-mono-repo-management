@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output (rebuilt on deploy)
+client/dist/
+
+# Local database
+data/
+*.db
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
