@@ -40,9 +40,83 @@ app.post('/api/auth/login', (req, res) => {
   res.json(result);
 });
 
-// Protected routes - skip auth for health and login
+// --- Session API (public - for tablet name entry) ---
+
+// Get active tournament so tablets know which tournament to register for
+app.get('/api/session/active-tournament', (req, res) => {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT id, name, status, starting_chips FROM tournaments
+    WHERE status = 'active'
+    ORDER BY event_date DESC
+    LIMIT 1
+  `).get();
+  if (!row) return res.status(404).json({ error: 'No active tournament' });
+  res.json(row);
+});
+
+// Register player name/username from tablet (first screen before proceeding)
+// Body: { tournament_id, external_uid, display_name, client_ip? }
+app.post('/api/session/register-player', (req, res) => {
+  const db = getDb();
+  const { tournament_id, external_uid, display_name, client_ip } = req.body || {};
+  const name = (display_name || '').trim();
+  if (!tournament_id || !external_uid || !name) {
+    return res.status(400).json({ error: 'tournament_id, external_uid, and display_name required' });
+  }
+  const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tournament_id);
+  if (!tournament) return res.status(404).json({ error: 'Tournament not found' });
+  if (!['draft', 'active'].includes(tournament.status)) {
+    return res.status(400).json({ error: 'Tournament is not open for registration' });
+  }
+  const startingChips = tournament.starting_chips ?? 0;
+  try {
+    db.exec('BEGIN');
+    const upsertPlayer = db.prepare(`
+      INSERT INTO players (external_uid, client_ip, display_name, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(external_uid) DO UPDATE SET
+        client_ip = COALESCE(?, client_ip),
+        display_name = excluded.display_name,
+        updated_at = datetime('now')
+    `);
+    upsertPlayer.run(external_uid, client_ip || null, name, client_ip || null);
+    const player = db.prepare('SELECT id FROM players WHERE external_uid = ?').get(external_uid);
+    const existingReg = db.prepare('SELECT id FROM tournament_registrations WHERE tournament_id = ? AND player_id = ?')
+      .get(tournament_id, player.id);
+    const insertReg = db.prepare(`
+      INSERT OR IGNORE INTO tournament_registrations (tournament_id, player_id, starting_chips, current_chips)
+      VALUES (?, ?, ?, ?)
+    `);
+    insertReg.run(tournament_id, player.id, startingChips, startingChips);
+    const reg = db.prepare('SELECT id FROM tournament_registrations WHERE tournament_id = ? AND player_id = ?')
+      .get(tournament_id, player.id);
+    if (reg && !existingReg) {
+      db.prepare(`
+        INSERT INTO chip_history (tournament_id, registration_id, chips, reason, notes)
+        VALUES (?, ?, ?, 'starting', 'Tablet check-in')
+      `).run(tournament_id, reg.id, startingChips);
+    }
+    const upsertCheckin = db.prepare(`
+      INSERT INTO session_player_checkins (tournament_id, player_id, external_uid, display_name, client_ip)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(tournament_id, external_uid) DO UPDATE SET
+        display_name = excluded.display_name,
+        client_ip = excluded.client_ip,
+        checked_in_at = datetime('now')
+    `);
+    upsertCheckin.run(tournament_id, player.id, external_uid, name, client_ip || null);
+    db.exec('COMMIT');
+    res.json({ ok: true, player_id: player.id, display_name: name });
+  } catch (e) {
+    db.exec('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Protected routes - skip auth for health, login, and session (tablet registration)
 app.use('/api', (req, res, next) => {
-  if (req.path === '/health' || req.path.startsWith('/auth')) return next();
+  if (req.path === '/health' || req.path.startsWith('/auth') || req.path.startsWith('/session')) return next();
   return authMiddleware(req, res, next);
 });
 
@@ -324,6 +398,19 @@ app.delete('/api/tournaments/:id/tables/:ttId', (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM tournament_tables WHERE id = ? AND tournament_id = ?').run(req.params.ttId, req.params.id);
   res.json({ ok: true });
+});
+
+// Session check-ins (who entered name on tablet for this tournament)
+app.get('/api/tournaments/:id/session-checkins', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT spc.id, spc.tournament_id, spc.player_id, spc.external_uid, spc.display_name, spc.client_ip, spc.checked_in_at, spc.created_at
+    FROM session_player_checkins spc
+    JOIN players p ON p.id = spc.player_id
+    WHERE spc.tournament_id = ?
+    ORDER BY spc.checked_in_at DESC
+  `).all(req.params.id);
+  res.json(rows);
 });
 
 // Chip history / progression for a registration

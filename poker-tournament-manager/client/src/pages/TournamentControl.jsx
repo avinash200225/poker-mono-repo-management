@@ -95,6 +95,7 @@ export default function TournamentControl() {
   const { id } = useParams();
   const [tournament, setTournament] = useState(null);
   const [registrations, setRegistrations] = useState([]);
+  const [sessionCheckins, setSessionCheckins] = useState([]);
   const [tables, setTables] = useState([]);
   const [players, setPlayers] = useState([]);
   const [allTables, setAllTables] = useState([]);
@@ -106,6 +107,7 @@ export default function TournamentControl() {
   const load = () => {
     api(`/api/tournaments/${id}`).then((r) => r.json()).then(setTournament).catch(() => setTournament(null));
     api(`/api/tournaments/${id}/registrations`).then((r) => r.json()).then(setRegistrations);
+    api(`/api/tournaments/${id}/session-checkins`).then((r) => r.json()).then(setSessionCheckins).catch(() => setSessionCheckins([]));
     api(`/api/tournaments/${id}/tables`).then((r) => r.json()).then(setTables);
     api('/api/players').then((r) => r.json()).then(setPlayers);
     api('/api/tables').then((r) => r.json()).then(setAllTables);
@@ -183,7 +185,40 @@ export default function TournamentControl() {
           <span className="stat-value">{tables.length}</span>
           <span className="stat-label">Tables</span>
         </div>
+        <div className="stat-card">
+          <span className="stat-value">{sessionCheckins.length}</span>
+          <span className="stat-label">Tablet Check-ins</span>
+        </div>
       </div>
+
+      {sessionCheckins.length > 0 && (
+        <div className="card">
+          <h3>Session Check-ins (Name entered on tablet)</h3>
+          <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+            Players who entered their name on the first tablet screen before proceeding.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Name / Username</th>
+                <th>Seat (UID)</th>
+                <th>IP</th>
+                <th>Checked in</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessionCheckins.map((c) => (
+                <tr key={c.id}>
+                  <td><strong>{c.display_name}</strong></td>
+                  <td><code>{c.external_uid}</code></td>
+                  <td>{c.client_ip || '—'}</td>
+                  <td>{c.checked_in_at ? new Date(c.checked_in_at).toLocaleString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="card">
         <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

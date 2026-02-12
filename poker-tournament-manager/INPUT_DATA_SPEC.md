@@ -168,20 +168,55 @@ This document describes **all data available from the Poker Table application** 
 
 ---
 
-## 6. Integration Options
+## 6. Session Player Registration (Tablet Name Entry)
+
+When a user enters their name/username on the first screen of the tablet before proceeding, the tablet (or poker app) should call the Tournament Manager session API to store and track the player.
+
+### Session API Endpoints (public, no auth)
+
+| Endpoint | Method | Description |
+|---------|--------|-------------|
+| `/api/session/active-tournament` | GET | Returns the currently active tournament so tablets know which tournament to register for |
+| `/api/session/register-player` | POST | Register a player's name for a tournament session |
+
+### Register Player Request
+
+```json
+POST /api/session/register-player
+{
+  "tournament_id": 1,
+  "external_uid": "2",
+  "display_name": "John Doe",
+  "client_ip": "192.168.1.105"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tournament_id` | number | yes | Tournament ID (from active-tournament or admin config) |
+| `external_uid` | string | yes | Seat/tablet UID (e.g. "1", "2") — links to the physical tablet |
+| `display_name` | string | yes | Name or username entered by the player |
+| `client_ip` | string | no | Tablet IP address |
+
+The manager will: create/update the player, add them to the tournament, record the check-in timestamp, and assign starting chips from the tournament.
+
+---
+
+## 7. Integration Options
 
 | Method | Pros | Cons |
 |--------|------|------|
 | **A. WebSocket subscriber** | Real-time, no file polling | Requires poker server to expose WS for tournament service |
 | **B. File watcher** | No changes to poker server | Reads ~/holdem/*.json; depends on file storage |
 | **C. REST API on poker server** | Clean separation | Requires new endpoints in Scala/Play app |
-| **D. Shared DB** | Direct SQL queries | Poker app uses file-based storage, not DB for holdem |
+| **D. Session API (above)** | Tablet calls manager directly | Tablet must know manager URL and tournament_id |
+| **E. Shared DB** | Direct SQL queries | Poker app uses file-based storage, not DB for holdem |
 
-**Recommended:** Add a **WebSocket client** in tournament manager that connects to `ws://poker-server:9000/holdem/wsclient/admin` (or a dedicated tournament endpoint) and receives `PlayerRoundTransaction` and `PlayerGameTransaction` events. Alternatively, **file watcher** on `~/holdem/roundTransactions.json` for initial integration with zero changes to poker server.
+**Recommended:** Add a **WebSocket client** in tournament manager that connects to `ws://poker-server:9000/holdem/wsclient/admin` (or a dedicated tournament endpoint) and receives `PlayerRoundTransaction` and `PlayerGameTransaction` events. Alternatively, **file watcher** on `~/holdem/roundTransactions.json` for initial integration with zero changes to poker server. For **player name entry**, the tablet should call `POST /api/session/register-player` when the user submits their name on the first screen.
 
 ---
 
-## 7. Stats We Can Derive
+## 8. Stats We Can Derive
 
 From RoundTransaction + GameTransaction:
 
@@ -197,7 +232,7 @@ From RoundTransaction + GameTransaction:
 
 ---
 
-## 8. Card Encoding
+## 9. Card Encoding
 
 Cards use format: `{suit}{rank}`
 - Suits: `h`=hearts, `d`=diamonds, `c`=clubs, `s`=spades
