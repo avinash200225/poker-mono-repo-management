@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poker Simulation | Tournament Manager</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #1a1a1e; color: #e0e0e0; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { color: #d4a853; margin-top: 0; }
+    .card { background: #25252a; border: 1px solid #333; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+    .stat { background: #2a2a30; padding: 0.75rem; border-radius: 6px; text-align: center; }
+    .stat-value { font-size: 1.5rem; font-weight: 600; color: #d4a853; }
+    .stat-label { font-size: 0.8rem; color: #888; }
+    button { background: #d4a853; color: #1a1a1e; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    button:hover { background: #e6b95c; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: #444; color: #e0e0e0; }
+    select, input { padding: 0.5rem; border-radius: 4px; border: 1px solid #444; background: #2a2a30; color: #e0e0e0; }
+    .hand-card { background: #2a2a30; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; font-size: 0.9rem; }
+    .hand-header { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .card-chips { display: inline-block; background: #333; padding: 0.1rem 0.4rem; margin: 0 0.1rem; border-radius: 4px; font-size: 0.85rem; }
+    .winner { color: #d4a853; font-weight: 600; }
+    .live-table { width: 100%; border-collapse: collapse; }
+    .live-table th, .live-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #333; }
+    .live-table th { color: #888; font-weight: 500; }
+    .error { color: #e55; }
+    .muted { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>♠ Poker Simulation</h1>
+    <p class="muted">Connects to Tournament Manager backend. Tracks every hand live. Log in to the main app first so the simulator can access tournament data.</p>
+
+    <div class="card">
+      <h3>Setup</h3>
+      <p class="muted">API: <span id="apiUrl">/api</span></p>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-top: 0.5rem;">
+        <div>
+          <label>Tournament</label>
+          <select id="tournamentSelect">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div>
+          <button id="btnLoad" class="secondary">Load tournament</button>
+          <button id="btnSetup">Setup</button>
+        </div>
+      </div>
+      <div style="margin-top: 1rem;">
+        <button id="btnStart">▶ Start Simulation</button>
+        <button id="btnFastForward" class="secondary">⏩ Fast Forward</button>
+        <span id="simStatus" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="grid" id="statsGrid"></div>
+    <div class="card">
+      <h3>Live Leaderboard</h3>
+      <table class="live-table" id="leaderboard">
+        <thead><tr><th>#</th><th>Player</th><th>Chips</th><th>Points</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Hand History (live)</h3>
+      <div id="handHistory"></div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'tournament_token';
+    const API = (path, opts = {}) => {
+      const url = (path.startsWith('http') ? path : (window.API_BASE || '') + path);
+      const headers = { ...(opts.headers || {}) };
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      return fetch(url, { credentials: 'include', ...opts, headers });
+    };
+
+    let tournamentId = null;
+    let tournament = null;
+    let pollInterval = null;
+
+    document.getElementById('apiUrl').textContent = (window.API_BASE || window.location.origin) + '/api';
+
+    API('/api/tournaments').then(r => r.json()).then(list => {
+      const sel = document.getElementById('tournamentSelect');
+      list.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = `${t.name} (${t.status})`;
+        sel.appendChild(o);
+      });
+    });
+
+    document.getElementById('btnLoad').onclick = () => {
+      tournamentId = document.getElementById('tournamentSelect').value;
+      if (!tournamentId) return alert('Select a tournament');
+      API(`/api/tournaments/${tournamentId}`).then(r => r.json()).then(t => {
+        tournament = t;
+        const tables = Math.max(1, t.tables_count ?? 1);
+        const players = t.max_players ?? 8;
+        document.getElementById('btnSetup').textContent = `Setup (${tables} table${tables>1?'s':''}, ${players} players)`;
+        refreshLive();
+        document.getElementById('simStatus').textContent = `Loaded: ${t.name}`;
+      }).catch(e => document.getElementById('simStatus').textContent = 'Error: ' + e.message);
+    };
+
+    document.getElementById('btnSetup').onclick = async () => {
+      tournamentId = document.getElementById('tournamentSelect').value;
+      if (!tournamentId) return alert('Select a tournament');
+      try {
+        const r = await API('/api/simulator/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: tournamentId })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        document.getElementById('simStatus').textContent = `Setup done: ${data.tables} table(s), ${data.players} players`;
+        refreshLive();
+      } catch (e) {
+        document.getElementById('simStatus').innerHTML = '<span class="error">' + e.message + '</span>';
+      }
+    };
+
+    function refreshLive() {
+      if (!tournamentId) return;
+      Promise.all([
+        API(`/api/tournaments/${tournamentId}`).then(r => r.json()),
+        API(`/api/tournaments/${tournamentId}/registrations`).then(r => r.json()),
+        API(`/api/tournaments/${tournamentId}/stats`).then(r => r.json()),
+        API(`/api/hands?tournament_id=${tournamentId}`).then(r => r.json())
+      ]).then(([t, regs, stats, hands]) => {
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat"><span class="stat-value">${regs.filter(r=>!r.eliminated_at_round && r.status!=='cashed_out').length}</span><span class="stat-label">In Play</span></div>
+          <div class="stat"><span class="stat-value">${(stats.totalChips||0).toLocaleString()}</span><span class="stat-label">Total Chips</span></div>
+          <div class="stat"><span class="stat-value">${stats.handsPlayed||0}</span><span class="stat-label">Hands</span></div>
+          <div class="stat"><span class="stat-value">${(stats.avgStack||0).toLocaleString()}</span><span class="stat-label">Avg Stack</span></div>
+        `;
+        const active = regs.filter(r => !r.eliminated_at_round && r.status !== 'cashed_out').sort((a,b)=>(b.current_chips??b.starting_chips??0)-(a.current_chips??a.starting_chips??0));
+        const eliminated = regs.filter(r => r.eliminated_at_round != null).sort((a,b)=>(a.position??999)-(b.position??999));
+        let html = active.map((r,i)=>`<tr><td>${i+1}</td><td>${r.display_name}</td><td>${(r.current_chips??r.starting_chips??0).toLocaleString()}</td><td>—</td></tr>`).join('');
+        html += eliminated.map(r=>`<tr class="eliminated"><td>#${r.position}</td><td>${r.display_name}</td><td>—</td><td>${r.dr_neau_points!=null?Number(r.dr_neau_points).toFixed(2):'—'}</td></tr>`).join('');
+        document.querySelector('#leaderboard tbody').innerHTML = html || '<tr><td colspan="4" class="muted">No players</td></tr>';
+        const recent = hands.slice(0, 10).reverse();
+        document.getElementById('handHistory').innerHTML = recent.map(h=>`
+          <div class="hand-card">
+            <div class="hand-header">Round ${h.round_id} · Table ${h.table_id||'—'} · Pot ${(h.pot_amount||0).toLocaleString()} · ${h.winning_hand||'—'}</div>
+            <span class="muted">${h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : ''}</span>
+          </div>
+        `).join('') || '<p class="muted">No hands yet</p>';
+      }).catch(() => {});
+    }
+
+    const SUITS = ['h','d','c','s'], RANKS = ['A','K','Q','J','10','9','8','7','6','5','4','3','2'];
+    const HAND_RANKS = ['Royal Flush','Straight Flush','Four of a Kind','Full House','Flush','Straight','Three of a Kind','Two Pair','One Pair','High Card'];
+
+    function createDeck() {
+      const d = [];
+      for (const s of SUITS) for (const r of RANKS) d.push(s+r);
+      return d.sort(()=>Math.random()-0.5);
+    }
+
+    function generateHand(roundId, tableId, participants, chipBalances) {
+      const deck = createDeck();
+      const community = deck.splice(0, 5);
+      const winnerIdx = Math.floor(Math.random() * participants.length);
+      const winnerUid = participants[winnerIdx];
+      const winnerHand = HAND_RANKS[Math.floor(Math.random()*HAND_RANKS.length)];
+      const seats = [];
+      let totalPot = 0;
+      for (let i = 0; i < participants.length; i++) {
+        const uid = participants[i];
+        const hole = deck.splice(0, 2);
+        const bet = Math.min(chipBalances[uid]??0, 50+Math.floor(Math.random()*200));
+        totalPot += bet;
+        const isWin = uid === winnerUid;
+        seats.push({ id: i, uid: String(uid), cards: hole, hand: isWin ? [...hole,...community].slice(0,5) : [], score: isWin ? winnerHand : 'Folded', betList: [{ betValue: bet }], winAmount: isWin ? totalPot : 0, gameStatus: isWin ? 'Win-'+winnerHand : 'Folded' });
+      }
+      for (const s of seats) {
+        chipBalances[s.uid] = (chipBalances[s.uid]??0) - (s.betList[0]?.betValue??0) + (s.winAmount??0);
+      }
+      return { roundId, tableId, gameName: 'Texas No Limit', winningHand: [winnerHand], gameResult: JSON.stringify({ roundId, gameCards: community, seats }) };
+    }
+
+    async function runSimulation(fastForward) {
+      tournamentId = document.getElementById('tournamentSelect').value;
+      if (!tournamentId) return alert('Select a tournament');
+      try {
+        const r = tournament || await API(`/api/tournaments/${tournamentId}`).then(x=>x.json());
+        const chips = r.starting_chips ?? 10000;
+        const playerCount = r.max_players ?? 8;
+        const tableCount = Math.max(1, r.tables_count ?? 1);
+        const perTable = Math.ceil(playerCount / tableCount);
+        const allUids = Array.from({ length: playerCount }, (_, i) => String(i + 1));
+        const tableLayout = [];
+        for (let t = 0; t < tableCount; t++) {
+          const start = t * perTable;
+          tableLayout.push({ id: String(70 + t + 1), uids: allUids.slice(start, Math.min(start + perTable, playerCount)) });
+        }
+        const balances = {}; allUids.forEach(u=>balances[u]=chips);
+        const rounds = [];
+        let roundId = 1000 + Math.floor(Math.random()*1000);
+        const maxHands = 2000;
+        for (let h = 0; h < maxHands; h++) {
+          const active = allUids.filter(u=>(balances[u]??0)>0);
+          if (active.length < 2) break;
+          const table = tableLayout[h % tableLayout.length];
+          const participants = table.uids.filter(u=>(balances[u]??0)>0).sort(()=>Math.random()-0.5).slice(0, 2+Math.floor(Math.random()*4));
+          if (participants.length < 2) continue;
+          const round = generateHand(roundId, table.id, participants, balances);
+          round.timestamp = new Date().toISOString();
+          rounds.push(round);
+          roundId++;
+        }
+        document.getElementById('simStatus').textContent = `Ingesting ${rounds.length} hands...`;
+        const ingest = await API('/api/sync/rounds/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tournament_id: Number(tournamentId), records: rounds })
+        });
+        if (!ingest.ok) throw new Error(await ingest.text());
+        const activeLeft = allUids.filter(u=>(balances[u]??0)>0).length;
+        document.getElementById('simStatus').textContent = activeLeft === 1 ? `Done: ${rounds.length} hands — tournament ended, winner crowned` : `Done: ${rounds.length} hands`;
+        refreshLive();
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(refreshLive, 2000);
+      } catch (e) {
+        document.getElementById('simStatus').innerHTML = '<span class="error">' + e.message + '</span>';
+      }
+    }
+
+    document.getElementById('btnStart').onclick = () => runSimulation(false);
+    document.getElementById('btnFastForward').onclick = () => runSimulation(true);
+  </script>
+</body>
+</html>

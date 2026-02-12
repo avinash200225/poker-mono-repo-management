@@ -153,9 +153,63 @@ function processRoundRecords(arrayRecords, tournamentId, db = null) {
             handId, uid, handRank, cards, bestHand, winAmount, rec.timestamp || new Date().toISOString()
           );
         }
+
+        // Update tournament registration chips when we have a tournament context (simulation ingest)
+        if (tournamentId && (totalBet > 0 || winAmount > 0)) {
+          const reg = database.prepare(`
+            SELECT tr.id, tr.current_chips FROM tournament_registrations tr
+            JOIN players p ON p.id = tr.player_id
+            WHERE tr.tournament_id = ? AND p.external_uid = ? AND tr.eliminated_at_round IS NULL AND (tr.status IS NULL OR tr.status = 'active')
+          `).get(tournamentId, uid);
+          if (reg) {
+            const current = reg.current_chips ?? 0;
+            const newChips = Math.max(0, current - totalBet + winAmount);
+            database.prepare('UPDATE tournament_registrations SET current_chips = ? WHERE id = ?').run(newChips, reg.id);
+            database.prepare(`
+              INSERT INTO chip_history (tournament_id, registration_id, chips, reason, notes)
+              VALUES (?, ?, ?, 'hand_result', ?)
+            `).run(tournamentId, reg.id, newChips, `Round ${roundId}`);
+            // Auto-eliminate when chips hit 0: first bust = last place (position N), last bust = 2nd, winner = 1st
+            if (newChips === 0) {
+              const totalPlayers = database.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(tournamentId).n;
+              const eliminatedCount = database.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ? AND eliminated_at_round IS NOT NULL').get(tournamentId).n;
+              const nextPos = totalPlayers - eliminatedCount;
+              const t = database.prepare('SELECT buy_in, total_prize_pool, total_rebuys, total_addons FROM tournaments WHERE id = ?').get(tournamentId);
+              const buyIn = t?.buy_in ?? 0;
+              const totalSpend = (totalPlayers * buyIn) + (Number(t?.total_rebuys) || 0) + (Number(t?.total_addons) || 0);
+              const prizePool = (t?.total_prize_pool != null ? Number(t.total_prize_pool) : null) ?? (totalSpend > 0 ? totalSpend : totalPlayers * Math.max(buyIn, 100));
+              const { drNeauPoints, drNeauReworkedPoints } = require('../utils/points');
+              const points = drNeauPoints(totalPlayers, nextPos);
+              const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend || (totalPlayers * 100), nextPos);
+              database.prepare('UPDATE tournament_registrations SET eliminated_at_round = ?, status = ?, position = ?, dr_neau_points = ?, dr_neau_reworked_points = ? WHERE id = ?')
+                .run(roundId, 'eliminated', nextPos, points, reworkedPoints, reg.id);
+            }
+          }
+        }
       }
     } catch (e) {
       console.warn('Sync round skip:', roundId, e.message);
+    }
+  }
+
+  // When only 1 active player remains, crown winner (position 1) and mark tournament completed
+  if (tournamentId) {
+    const active = database.prepare(`
+      SELECT tr.id, tr.player_id FROM tournament_registrations tr
+      WHERE tr.tournament_id = ? AND tr.eliminated_at_round IS NULL AND (tr.status IS NULL OR tr.status = 'active')
+    `).all(tournamentId);
+    if (active.length === 1) {
+      const { drNeauPoints, drNeauReworkedPoints } = require('../utils/points');
+      const totalPlayers = database.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(tournamentId).n;
+      const t = database.prepare('SELECT buy_in, total_prize_pool, total_rebuys, total_addons FROM tournaments WHERE id = ?').get(tournamentId);
+      const buyIn = t?.buy_in ?? 0;
+      const totalSpend = (totalPlayers * buyIn) + (Number(t?.total_rebuys) || 0) + (Number(t?.total_addons) || 0);
+      const prizePool = (t?.total_prize_pool != null ? Number(t.total_prize_pool) : null) ?? (totalSpend > 0 ? totalSpend : totalPlayers * Math.max(buyIn, 100));
+      const points = drNeauPoints(totalPlayers, 1);
+      const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend || (totalPlayers * 100), 1);
+      database.prepare('UPDATE tournament_registrations SET eliminated_at_round = 0, status = ?, position = 1, dr_neau_points = ?, dr_neau_reworked_points = ? WHERE id = ?')
+        .run('eliminated', points, reworkedPoints, active[0].id);
+      database.prepare('UPDATE tournaments SET status = ? WHERE id = ?').run('completed', tournamentId);
     }
   }
 

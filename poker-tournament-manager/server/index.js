@@ -2,33 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { getDb } = require('./db/init');
-const { syncUsers, syncRoundTransactions, processRoundRecords, startFileWatcher, DEFAULT_PATHS } = require('./services/syncService');
+const { syncUsers, syncRoundTransactions, startFileWatcher, DEFAULT_PATHS } = require('./services/syncService');
 const { login, middleware: authMiddleware, ensureSeedAdmin } = require('./services/authService');
-
-// Dr. Neau formula: Points = LN((TotalPlayers + 1) / FinishPosition)
-function drNeauPoints(totalPlayers, position) {
-  if (!position || position < 1) return null;
-  return Math.log((totalPlayers + 1) / position);
-}
-
-// Dr. Neau reworked: prize-pool/avg-spend aware
-// Points = (Prizemoney / √(Players · (Buy-in + Rebuys + Add-ons))) · (1 / (1 + Rank))
-function drNeauReworkedPoints(prizePool, players, totalSpend, position) {
-  if (!position || position < 1 || !players || players < 1) return null;
-  const spend = totalSpend || (players * 100); // fallback
-  const denom = Math.sqrt(players * spend);
-  if (denom <= 0) return null;
-  return (prizePool / denom) * (1 / (1 + position));
-}
+const { drNeauPoints, drNeauReworkedPoints } = require('./utils/points');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const clientBuild = path.join(__dirname, '..', 'client', 'dist');
 
 app.use(cors());
-app.use(express.json());
-
-// Serve built React app
-const clientBuild = path.join(__dirname, '..', 'client', 'dist');
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(clientBuild));
 
 // --- Public API (no auth) ---
@@ -124,9 +107,33 @@ app.post('/api/session/register-player', (req, res) => {
   }
 });
 
-// Protected routes - skip auth for health, login, and session (tablet registration)
+// Table lookup by tablet IP: which table/seat is this tablet assigned to?
+app.get('/api/session/table-info', (req, res) => {
+  const db = getDb();
+  const clientIp = req.query.client_ip || req.query.ip;
+  if (!clientIp) return res.status(400).json({ error: 'client_ip query param required' });
+  const row = db.prepare(`
+    SELECT tr.tournament_id, tr.table_number, tr.seat_number, tr.current_chips, tr.status, t.name as tournament_name
+    FROM tournament_registrations tr
+    JOIN tournaments t ON t.id = tr.tournament_id
+    WHERE tr.client_ip = ? AND tr.eliminated_at_round IS NULL AND (tr.status IS NULL OR tr.status = 'active')
+    ORDER BY tr.tournament_id DESC
+    LIMIT 1
+  `).get(clientIp.trim());
+  if (!row) return res.status(404).json({ error: 'No table assigned for this tablet IP' });
+  res.json({
+    tournament_id: row.tournament_id,
+    tournament_name: row.tournament_name,
+    table_number: row.table_number,
+    seat_number: row.seat_number,
+    current_chips: row.current_chips,
+  });
+});
+
+// Protected routes - skip auth for health, login, session (tablet), and simulator setup (for simulation UI)
 app.use('/api', (req, res, next) => {
-  if (req.path === '/health' || req.path.startsWith('/auth') || req.path.startsWith('/session')) return next();
+  if (req.path === '/health' || req.path.startsWith('/auth') || req.path.startsWith('/session') ||
+      req.path === '/simulator/setup') return next();
   return authMiddleware(req, res, next);
 });
 
@@ -206,7 +213,8 @@ app.post('/api/tournaments', (req, res) => {
 
 app.put('/api/tournaments/:id', (req, res) => {
   const db = getDb();
-  const { name, event_date, status, buy_in, starting_chips, blind_structure, tables_count, max_players } = req.body;
+  const { name, event_date, status, buy_in, starting_chips, blind_structure, tables_count, max_players,
+    total_prize_pool, total_rebuys, total_addons } = req.body;
   db.prepare(`
     UPDATE tournaments SET
       name = COALESCE(?, name),
@@ -217,11 +225,18 @@ app.put('/api/tournaments/:id', (req, res) => {
       blind_structure = COALESCE(?, blind_structure),
       tables_count = COALESCE(?, tables_count),
       max_players = COALESCE(?, max_players),
+      total_prize_pool = COALESCE(?, total_prize_pool),
+      total_rebuys = COALESCE(?, total_rebuys),
+      total_addons = COALESCE(?, total_addons),
       updated_at = datetime('now')
     WHERE id = ?
   `).run(name, event_date, status, buy_in, starting_chips,
     blind_structure ? JSON.stringify(blind_structure) : null,
-    tables_count, max_players, req.params.id);
+    tables_count, max_players,
+    total_prize_pool != null ? Number(total_prize_pool) : null,
+    total_rebuys != null ? Number(total_rebuys) : null,
+    total_addons != null ? Number(total_addons) : null,
+    req.params.id);
   res.json({ ok: true });
 });
 
@@ -232,19 +247,75 @@ app.get('/api/tournaments/:id', (req, res) => {
   res.json(row);
 });
 
+// End tournament: assign final positions by chip rank, mark completed
+app.post('/api/tournaments/:id/end', (req, res) => {
+  const db = getDb();
+  const tid = req.params.id;
+  try {
+    const t = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tid);
+    if (!t) return res.status(404).json({ error: 'Tournament not found' });
+    if (t.status === 'completed') return res.status(400).json({ error: 'Tournament already completed' });
+    if (t.status === 'cancelled') return res.status(400).json({ error: 'Cannot end cancelled tournament' });
+
+    const totalPlayers = db.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(tid).n;
+    if (totalPlayers === 0) {
+      db.prepare('UPDATE tournaments SET status = ? WHERE id = ?').run('completed', tid);
+      return res.json({ ok: true, status: 'completed' });
+    }
+
+    const buyIn = t.buy_in ?? 0;
+    const totalSpend = (totalPlayers * buyIn) + (Number(t.total_rebuys) || 0) + (Number(t.total_addons) || 0);
+    const prizePool = (t.total_prize_pool != null ? Number(t.total_prize_pool) : null) ?? (totalSpend > 0 ? totalSpend : totalPlayers * Math.max(buyIn, 100));
+
+    const active = db.prepare(`
+      SELECT tr.id, tr.current_chips, tr.starting_chips
+      FROM tournament_registrations tr
+      WHERE tr.tournament_id = ? AND tr.eliminated_at_round IS NULL
+        AND (tr.status IS NULL OR tr.status = 'active')
+      ORDER BY COALESCE(tr.current_chips, tr.starting_chips, 0) DESC
+    `).all(tid);
+
+    let pos = 1;
+    for (const reg of active) {
+      const points = drNeauPoints(totalPlayers, pos);
+      const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend || (totalPlayers * 100), pos);
+      db.prepare(`
+        UPDATE tournament_registrations
+        SET eliminated_at_round = 0, status = 'eliminated', position = ?, dr_neau_points = ?, dr_neau_reworked_points = ?
+        WHERE id = ?
+      `).run(pos, points, reworkedPoints, reg.id);
+      pos++;
+    }
+
+    db.prepare('UPDATE tournaments SET status = ? WHERE id = ?').run('completed', tid);
+    res.json({ ok: true, status: 'completed' });
+  } catch (e) {
+    console.error('[End tournament]', e);
+    res.status(500).json({ error: e.message || 'Failed to end tournament' });
+  }
+});
+
 app.delete('/api/tournaments/:id', (req, res) => {
   const db = getDb();
-  db.prepare('DELETE FROM tournament_registrations WHERE tournament_id = ?').run(req.params.id);
-  db.prepare('UPDATE hands SET tournament_id = NULL WHERE tournament_id = ?').run(req.params.id);
-  db.prepare('DELETE FROM tournaments WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
+  try {
+    db.prepare('DELETE FROM chip_history WHERE tournament_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM tournament_registrations WHERE tournament_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM session_player_checkins WHERE tournament_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM tournament_tables WHERE tournament_id = ?').run(req.params.id);
+    db.prepare('UPDATE hands SET tournament_id = NULL WHERE tournament_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM tournaments WHERE id = ?').run(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Delete failed' });
+  }
 });
 
 // Tournament registrations
 app.get('/api/tournaments/:id/registrations', (req, res) => {
   const db = getDb();
   const rows = db.prepare(`
-    SELECT tr.*, p.display_name, p.external_uid, p.client_ip
+    SELECT tr.*, p.display_name, p.external_uid,
+      COALESCE(tr.client_ip, p.client_ip) as client_ip
     FROM tournament_registrations tr
     JOIN players p ON p.id = tr.player_id
     WHERE tr.tournament_id = ?
@@ -277,14 +348,47 @@ app.post('/api/tournaments/:id/registrations', (req, res) => {
 
 app.delete('/api/tournaments/:id/registrations/:regId', (req, res) => {
   const db = getDb();
-  db.prepare('DELETE FROM tournament_registrations WHERE id = ? AND tournament_id = ?').run(req.params.regId, req.params.id);
+  try {
+    db.prepare('DELETE FROM tournament_registrations WHERE id = ? AND tournament_id = ?').run(req.params.regId, req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Cash out: save chips, mark cashed_out (player can rejoin later)
+app.post('/api/tournaments/:id/registrations/:regId/cash-out', (req, res) => {
+  const db = getDb();
+  const reg = db.prepare('SELECT * FROM tournament_registrations WHERE id = ? AND tournament_id = ?').get(req.params.regId, req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Registration not found' });
+  if (reg.eliminated_at_round != null) return res.status(400).json({ error: 'Player already eliminated' });
+  const chips = reg.current_chips ?? reg.starting_chips ?? 0;
+  db.prepare(`
+    UPDATE tournament_registrations SET status = ?, cashed_out_at = datetime('now'), cashed_out_chips = ?, seat_number = NULL, table_number = NULL, client_ip = NULL WHERE id = ?
+  `).run('cashed_out', chips, req.params.regId);
+  res.json({ ok: true, chips_saved: chips });
+});
+
+// Rejoin: set active, assign table/seat, update client_ip
+app.post('/api/tournaments/:id/registrations/:regId/rejoin', (req, res) => {
+  const db = getDb();
+  const { seat_number, table_number, client_ip } = req.body || {};
+  const reg = db.prepare('SELECT * FROM tournament_registrations WHERE id = ? AND tournament_id = ?').get(req.params.regId, req.params.id);
+  if (!reg) return res.status(404).json({ error: 'Registration not found' });
+  const chips = reg.cashed_out_chips ?? reg.current_chips ?? reg.starting_chips ?? 0;
+  db.prepare(`
+    UPDATE tournament_registrations SET status = ?, seat_number = ?, table_number = ?, client_ip = ?, current_chips = ? WHERE id = ?
+  `).run('active', seat_number ?? null, table_number ?? null, client_ip ?? null, chips, req.params.regId);
+  if (reg.player_id && client_ip) {
+    db.prepare('UPDATE players SET client_ip = ? WHERE id = ?').run(client_ip, reg.player_id);
+  }
   res.json({ ok: true });
 });
 
-// Update registration: chips, elimination, position
+// Update registration: chips, elimination, position, seat, table, status, client_ip
 app.patch('/api/tournaments/:id/registrations/:regId', (req, res) => {
   const db = getDb();
-  const { current_chips, eliminated_at_round, position, reason } = req.body;
+  const { current_chips, eliminated_at_round, position, reason, seat_number, table_number, status, client_ip } = req.body;
   const reg = db.prepare('SELECT * FROM tournament_registrations WHERE id = ? AND tournament_id = ?').get(req.params.regId, req.params.id);
   if (!reg) return res.status(404).json({ error: 'Registration not found' });
 
@@ -295,21 +399,66 @@ app.patch('/api/tournaments/:id/registrations/:regId', (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `).run(req.params.id, req.params.regId, current_chips, reason || 'hand_result', req.body.notes || '');
   }
-  if (eliminated_at_round != null) {
-    db.prepare('UPDATE tournament_registrations SET eliminated_at_round = ? WHERE id = ?').run(eliminated_at_round, req.params.regId);
+  if (seat_number !== undefined) {
+    db.prepare('UPDATE tournament_registrations SET seat_number = ? WHERE id = ?').run(seat_number, req.params.regId);
   }
-  if (position != null) {
+  if (table_number !== undefined) {
+    db.prepare('UPDATE tournament_registrations SET table_number = ? WHERE id = ?').run(table_number, req.params.regId);
+  }
+  if (eliminated_at_round != null) {
+    db.prepare('UPDATE tournament_registrations SET eliminated_at_round = ?, status = ? WHERE id = ?').run(eliminated_at_round, 'eliminated', req.params.regId);
+  }
+  if (req.body.status !== undefined) {
+    db.prepare('UPDATE tournament_registrations SET status = ? WHERE id = ?').run(req.body.status, req.params.regId);
+  }
+  if (req.body.client_ip !== undefined) {
+    db.prepare('UPDATE tournament_registrations SET client_ip = ? WHERE id = ?').run(req.body.client_ip, req.params.regId);
+    const reg2 = db.prepare('SELECT player_id FROM tournament_registrations WHERE id = ?').get(req.params.regId);
+    if (reg2) {
+      db.prepare('UPDATE players SET client_ip = ? WHERE id = ?').run(req.body.client_ip, reg2.player_id);
+    }
+  }
+  if (position != null && position >= 1) {
     const totalPlayers = db.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(req.params.id).n;
     const points = drNeauPoints(totalPlayers, position);
     const t = db.prepare('SELECT buy_in, starting_chips, total_prize_pool, total_rebuys, total_addons FROM tournaments WHERE id = ?').get(req.params.id);
     const buyIn = t?.buy_in ?? 0;
-    const totalSpend = (totalPlayers * buyIn) + (t?.total_rebuys ?? 0) + (t?.total_addons ?? 0);
-    const prizePool = t?.total_prize_pool ?? totalSpend;
-    const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend, position);
+    const totalSpend = (totalPlayers * buyIn) + (Number(t?.total_rebuys) || 0) + (Number(t?.total_addons) || 0);
+    const prizePool = (t?.total_prize_pool != null ? Number(t.total_prize_pool) : null) ?? (totalSpend > 0 ? totalSpend : totalPlayers * Math.max(buyIn, 100));
+    const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend || (totalPlayers * 100), position);
     db.prepare('UPDATE tournament_registrations SET position = ?, dr_neau_points = ?, dr_neau_reworked_points = ? WHERE id = ?')
       .run(position, points, reworkedPoints, req.params.regId);
   }
   res.json({ ok: true });
+});
+
+// Recalculate points for all eliminated players (fixes missing/wrong points)
+app.post('/api/tournaments/:id/recalculate-points', (req, res) => {
+  const db = getDb();
+  const tid = req.params.id;
+  const regs = db.prepare(`
+    SELECT id, position FROM tournament_registrations
+    WHERE tournament_id = ? AND eliminated_at_round IS NOT NULL
+    ORDER BY COALESCE(position, 9999) ASC, id ASC
+  `).all(tid);
+  const totalPlayers = db.prepare('SELECT COUNT(*) as n FROM tournament_registrations WHERE tournament_id = ?').get(tid).n;
+  const t = db.prepare('SELECT buy_in, total_prize_pool, total_rebuys, total_addons FROM tournaments WHERE id = ?').get(tid);
+  const buyIn = t?.buy_in ?? 0;
+  const totalSpend = (totalPlayers * buyIn) + (Number(t?.total_rebuys) || 0) + (Number(t?.total_addons) || 0);
+  const prizePool = (t?.total_prize_pool != null ? Number(t.total_prize_pool) : null) ?? (totalSpend > 0 ? totalSpend : totalPlayers * Math.max(buyIn, 100));
+  let pos = 1;
+  for (const r of regs) {
+    const position = r.position != null && r.position >= 1 ? r.position : pos;
+    if (r.position == null || r.position < 1) {
+      db.prepare('UPDATE tournament_registrations SET position = ? WHERE id = ?').run(position, r.id);
+    }
+    const points = drNeauPoints(totalPlayers, position);
+    const reworkedPoints = drNeauReworkedPoints(prizePool, totalPlayers, totalSpend || (totalPlayers * 100), position);
+    db.prepare('UPDATE tournament_registrations SET position = ?, dr_neau_points = ?, dr_neau_reworked_points = ? WHERE id = ?')
+      .run(position, points, reworkedPoints, r.id);
+    pos = position + 1;
+  }
+  res.json({ ok: true, updated: regs.length });
 });
 
 // Tables (physical tables with tablet serial numbers)
@@ -428,6 +577,36 @@ app.get('/api/tournaments/:id/session-checkins', (req, res) => {
   res.json(rows);
 });
 
+// Tournament stats overview
+app.get('/api/tournaments/:id/stats', (req, res) => {
+  const db = getDb();
+  const tid = req.params.id;
+  const regs = db.prepare(`
+    SELECT current_chips, starting_chips, eliminated_at_round, status
+    FROM tournament_registrations WHERE tournament_id = ?
+  `).all(tid);
+  const active = regs.filter((r) => r.eliminated_at_round == null && r.status !== 'cashed_out');
+  const totalChips = active.reduce((s, r) => s + (r.current_chips ?? r.starting_chips ?? 0), 0);
+  const hands = db.prepare(`
+    SELECT COUNT(*) as n FROM hands WHERE tournament_id = ?
+  `).get(tid);
+  const chipHistory = db.prepare(`
+    SELECT reason, SUM(chips) as total FROM chip_history WHERE tournament_id = ?
+    GROUP BY reason
+  `).all(tid);
+  const rebuys = chipHistory.find((c) => c.reason === 'rebuys')?.total ?? 0;
+  const addons = chipHistory.find((c) => c.reason === 'add_on')?.total ?? 0;
+  res.json({
+    totalChips,
+    avgStack: active.length ? Math.round(totalChips / active.length) : 0,
+    handsPlayed: hands?.n ?? 0,
+    rebuys,
+    addons,
+    activeCount: active.length,
+    eliminatedCount: regs.length - active.length,
+  });
+});
+
 // Chip history / progression for a registration
 app.get('/api/tournaments/:id/registrations/:regId/progression', (req, res) => {
   const db = getDb();
@@ -504,12 +683,13 @@ app.post('/api/sync/rounds', (req, res) => {
   res.json(result);
 });
 
-// Ingest round transactions directly (for game simulator)
+// Ingest round transactions (for simulation / external sync)
 app.post('/api/sync/rounds/ingest', (req, res) => {
   const { tournament_id, records } = req.body || {};
   if (!Array.isArray(records) || records.length === 0) {
     return res.status(400).json({ error: 'records array required' });
   }
+  const { processRoundRecords } = require('./services/syncService');
   const tournamentId = tournament_id ? Number(tournament_id) : null;
   const result = processRoundRecords(records, tournamentId);
   res.json(result);
@@ -523,17 +703,55 @@ app.get('/api/sync/status', (req, res) => {
   });
 });
 
-// SPA fallback
+// Simulator setup: create tables and players to match tournament's max_players and tables_count
+app.post('/api/simulator/setup', (req, res) => {
+  const db = getDb();
+  const { tournament_id } = req.body || {};
+  if (!tournament_id) return res.status(400).json({ error: 'tournament_id required' });
+  const tid = Number(tournament_id);
+  const t = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(tid);
+  if (!t) return res.status(404).json({ error: 'Tournament not found' });
+  const playerCount = t.max_players ?? 8;
+  const tableCount = Math.max(1, t.tables_count ?? 1);
+  const chips = t.starting_chips ?? 10000;
+  const perTable = Math.ceil(playerCount / tableCount);
+  const serials = Array.from({ length: tableCount }, (_, i) => String(70 + (i + 1)));
+  for (const serial of serials) {
+    if (!db.prepare('SELECT id FROM poker_tables WHERE serial_number = ?').get(serial)) {
+      db.prepare('INSERT INTO poker_tables (serial_number, name, status) VALUES (?, ?, ?)').run(serial, `Sim Table ${serial}`, 'active');
+    }
+  }
+  const placeholders = serials.map(() => '?').join(',');
+  const tableIds = db.prepare(`SELECT id FROM poker_tables WHERE serial_number IN (${placeholders}) ORDER BY serial_number`).all(...serials).map(r => r.id);
+  db.prepare('DELETE FROM tournament_tables WHERE tournament_id = ?').run(tid);
+  tableIds.forEach((id, i) => db.prepare('INSERT INTO tournament_tables (tournament_id, table_id, table_number) VALUES (?,?,?)').run(tid, id, i + 1));
+  for (let uid = 1; uid <= playerCount; uid++) {
+    const u = String(uid);
+    db.prepare("INSERT INTO players (external_uid, display_name, updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(external_uid) DO UPDATE SET display_name=excluded.display_name").run(u, `Player ${u}`);
+    const p = db.prepare('SELECT id FROM players WHERE external_uid = ?').get(u);
+    const tableNum = Math.min(tableCount, Math.ceil(uid / perTable));
+    const seatNum = ((uid - 1) % perTable) + 1;
+    db.prepare(`
+      INSERT INTO tournament_registrations (tournament_id, player_id, starting_chips, current_chips, seat_number, table_number, status)
+      VALUES (?,?,?,?,?,?,'active')
+      ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+        starting_chips=excluded.starting_chips, current_chips=excluded.current_chips, seat_number=excluded.seat_number, table_number=excluded.table_number, status='active'
+    `).run(tid, p.id, chips, chips, seatNum, tableNum);
+    const reg = db.prepare('SELECT id FROM tournament_registrations WHERE tournament_id = ? AND player_id = ?').get(tid, p.id);
+    if (reg) db.prepare('INSERT INTO chip_history (tournament_id, registration_id, chips, reason, notes) VALUES (?,?,?,?,?)').run(tid, reg.id, chips, 'starting', 'Simulator setup');
+  }
+  res.json({ ok: true, tables: tableCount, players: playerCount });
+});
+
+// SPA fallback (must be last)
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientBuild, 'index.html'));
 });
 
-// Start server
 app.listen(PORT, () => {
   ensureSeedAdmin();
-  console.log(`Poker Tournament Manager running at http://localhost:${PORT}`);
+  console.log(`Poker Tournament Manager at http://localhost:${PORT}`);
   console.log('Default login: admin@tournament.local / admin123');
-  // Optional: watch holdem folder for new rounds
   const watchEnv = process.env.WATCH_HOLDEM_PATH;
   if (watchEnv) {
     startFileWatcher(watchEnv);

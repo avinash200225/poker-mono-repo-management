@@ -35,6 +35,9 @@ export default function Tournaments() {
       buy_in: '',
       starting_chips: '',
       max_players: '',
+      total_prize_pool: '',
+      total_rebuys: '',
+      total_addons: '',
     });
     setTournamentTables([]);
   };
@@ -59,7 +62,12 @@ export default function Tournaments() {
             starting_chips: Number(modal.starting_chips) || 0,
             max_players: modal.max_players ? Number(modal.max_players) : null,
           }
-        : { ...modal };
+        : {
+            ...modal,
+            total_prize_pool: modal.total_prize_pool !== '' ? Number(modal.total_prize_pool) : null,
+            total_rebuys: modal.total_rebuys !== '' ? Number(modal.total_rebuys) : null,
+            total_addons: modal.total_addons !== '' ? Number(modal.total_addons) : null,
+          };
 
     api(url, { method, body: JSON.stringify(body) })
       .then(async (res) => {
@@ -78,7 +86,22 @@ export default function Tournaments() {
 
   const deleteTournament = (id) => {
     if (!confirm('Delete this tournament?')) return;
-    api(`/api/tournaments/${id}`, { method: 'DELETE' }).then(load);
+    api(`/api/tournaments/${id}`, { method: 'DELETE' })
+      .then(async (r) => {
+        if (r.ok) return load();
+        let msg = `Delete failed (${r.status})`;
+        const ct = r.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          try {
+            const d = await r.json();
+            msg = d?.error || msg;
+          } catch {}
+        } else {
+          msg = 'Delete failed. Ensure the backend server is running on port 3001.';
+        }
+        alert(msg);
+      })
+      .catch((e) => alert('Delete failed: ' + (e.message || 'Unknown error')));
   };
 
   return (
@@ -185,6 +208,31 @@ export default function Tournaments() {
                 onChange={(e) => setModal((m) => ({ ...m, max_players: e.target.value }))}
                 placeholder="Optional"
               />
+              {(modal.mode === 'edit') && (
+                <>
+                  <label>Total Prize Pool (₹) — for Dr. Neau reworked points</label>
+                  <input
+                    type="number"
+                    value={modal.total_prize_pool ?? ''}
+                    onChange={(e) => setModal((m) => ({ ...m, total_prize_pool: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                  <label>Total Rebuys (₹)</label>
+                  <input
+                    type="number"
+                    value={modal.total_rebuys ?? ''}
+                    onChange={(e) => setModal((m) => ({ ...m, total_rebuys: e.target.value }))}
+                    placeholder="0"
+                  />
+                  <label>Total Add-ons (₹)</label>
+                  <input
+                    type="number"
+                    value={modal.total_addons ?? ''}
+                    onChange={(e) => setModal((m) => ({ ...m, total_addons: e.target.value }))}
+                    placeholder="0"
+                  />
+                </>
+              )}
               <label>Tables for this tournament</label>
               <p className="muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
                 Select which tables (by serial #) will run this tournament

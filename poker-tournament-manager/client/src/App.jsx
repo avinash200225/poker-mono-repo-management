@@ -9,7 +9,6 @@ import Tournaments from './pages/Tournaments';
 import TournamentControl from './pages/TournamentControl';
 import Tables from './pages/Tables';
 import Sync from './pages/Sync';
-import Simulation from './pages/Simulation';
 import './App.css';
 
 function Layout() {
@@ -32,6 +31,7 @@ function Layout() {
           <li><NavLink to="/players">Players</NavLink></li>
           <li><NavLink to="/tournaments">Tournaments</NavLink></li>
           <li><NavLink to="/sync">Data Sync</NavLink></li>
+          <li><a href="/simulator.html" target="_blank" rel="noopener noreferrer">Simulation</a></li>
         </ul>
         <div className="sidebar-footer">
           <span className="user-email">{user?.email}</span>
@@ -56,7 +56,6 @@ function App() {
             <Route path="/players/:id" element={<PlayerProfile />} />
             <Route path="/tournaments" element={<Tournaments />} />
             <Route path="/tournaments/:id/control" element={<TournamentControl />} />
-            <Route path="/tournaments/:id/simulation" element={<Simulation />} />
             <Route path="/sync" element={<Sync />} />
           </Route>
         </Routes>
